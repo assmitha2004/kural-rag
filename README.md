@@ -84,6 +84,33 @@ p < 0.05. Changes that failed did not ship.
 
 ---
 
+## Problems found and fixed
+
+Most bugs in this project were **silent**: nothing crashed, the numbers just looked plausible. Each one became an
+automatic check.
+
+| Problem | How it was caught | What changed |
+|---|---|---|
+| **Test leakage.** Some generated practice questions were word-for-word copies of golden-set questions, and an LLM rewriter had the chapter list in its context, so scores rose for the wrong reason | Comparing generated text against the test set | The leaked results were thrown out, and [`src/check_prompt_leakage.py`](src/check_prompt_leakage.py) now fails the run on any match |
+| **A metric grading its own homework.** Scoring "correct = right chapter" while tuning the chapter weight said 0.8 was best | Re-checked on the hand-checked golden set: 0.8 scored 42, *below* the 44 baseline | Weights are chosen only on the honest set; the chapter blend stays at 0.5 |
+| **A switch that reached half the pipeline.** A corpus-text setting changed the first search stage while the reranker still read the old text | Wiring audit | [`src/audit_wiring.py`](src/audit_wiring.py) checks every stage reads the same text and that no API key leaks |
+| **Lost long runs.** A 2-hour GPU experiment that saved only at the end lost everything when stopped | — | Checkpointing in [`colab_bakeoff/bakeoff/checkpointing.py`](colab_bakeoff/bakeoff/checkpointing.py), proven by killing the run with `kill -9` and resuming |
+| **Corpus join by position.** One source is missing two verses, so a position-based join would mis-pair 934 of 1,330 records | Corpus audit | Sources are joined on verse number only |
+
+## Where to look in the code
+
+| File | Why it matters |
+|---|---|
+| [`src/pipeline.py`](src/pipeline.py) | The retriever: exact embedding search + BM25 + chapter signal, weighted blend |
+| [`src/keyword_search.py`](src/keyword_search.py) | BM25 written by hand |
+| [`src/rerank.py`](src/rerank.py) | Reranker stage over the top 50 |
+| [`src/generate.py`](src/generate.py) | Grounded answer; every `[number]` citation is checked against the 5 verses supplied |
+| [`src/evaluate.py`](src/evaluate.py) | Scorecard with McNemar's exact test |
+| [`service/app.py`](service/app.py) | FastAPI service: `/search`, `/generate`, request-id logging |
+| [`lib/retrieval.ts`](lib/retrieval.ts) | Web app's retrieval client and word-overlap fallback |
+
+---
+
 ## Tech stack
 
 | Part | Technology |
